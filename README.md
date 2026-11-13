@@ -19,6 +19,21 @@ Save the generated key securely for the client and reuse it across restarts.
 Changing `API_KEY` rotates the single shared key. Requests are rejected when
 the configured key is missing or blank; there is no key management system.
 
+## Docker development
+
+Build and run the development server (the API key is supplied at runtime):
+
+```sh
+docker build -t volunteer-api .
+export API_KEY="$(ruby -rsecurerandom -e 'puts SecureRandom.hex(32)')"
+docker run --rm -p 127.0.0.1:9292:3000 -e API_KEY \
+  -v volunteer-api-storage:/app/storage volunteer-api
+```
+
+The container prepares the development database on startup. The named volume
+retains SQLite data between runs; omit `-v` for a disposable database. Use the
+submission example below to test it. This image is for development only.
+
 ## Submit
 
 `POST /volunteer_submissions` accepts `application/json` and the key in
