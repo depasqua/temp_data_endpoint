@@ -1,30 +1,28 @@
 # Volunteer interest API
 
-A small Ruby API with one model for storing volunteer interest submissions.
+A Rails API with one Active Record model for volunteer interest submissions.
 The source site's form fields could not be verified, so the endpoint accepts a
-non-empty JSON object and stores its fields unchanged rather than assuming a
-specific form schema.
+non-empty JSON object and stores its fields unchanged.
 
-## Run
+## Setup
 
-Install Ruby and Bundler, then:
+Install Ruby 3.2 or newer and Bundler:
 
 ```sh
 bundle install
+bin/rails db:prepare
 export API_KEY="$(ruby -rsecurerandom -e 'puts SecureRandom.hex(32)')"
-bundle exec ruby app.rb
+bin/rails server -b 127.0.0.1 -p 9292
 ```
 
 Save the generated key securely for the client and reuse it across restarts.
-Changing `API_KEY` and restarting rotates the single shared key; there is no
-per-client key management. The server refuses to start without a nonblank key.
-It listens on `127.0.0.1:9292` by default; `HOST` and `PORT` can override this.
+Changing `API_KEY` rotates the single shared key. Requests are rejected when
+the configured key is missing or blank; there is no key management system.
 
 ## Submit
 
-`POST /volunteer_submissions` accepts `application/json`, a `Content-Length`,
-and the key in `X-API-Key`. Replace the example fields with the actual form
-fields. The maximum body size is 65,536 bytes.
+`POST /volunteer_submissions` accepts `application/json` and the key in
+`X-API-Key`. Replace these example fields with the actual form fields:
 
 ```sh
 curl -i http://127.0.0.1:9292/volunteer_submissions \
@@ -33,34 +31,36 @@ curl -i http://127.0.0.1:9292/volunteer_submissions \
   -d '{"name":"Example Volunteer","email":"volunteer@example.org"}'
 ```
 
-A successful request returns `201` and `{"id":"..."}`. Missing or incorrect
-keys return `401`; invalid JSON or an empty/non-object body returns `400`.
-Other responses include `405` for an unsupported method, `411` for a missing
-length or chunked body, `413` for an oversized body, and `415` for an
-unsupported content type.
+Success returns `201` and `{"id":1}`. An invalid or missing key returns `401`;
+invalid JSON, an empty object, or a non-object body returns `400`. A body
+larger than 65,536 bytes returns `413`, and an unsupported content type returns
+`415`. No other application endpoints are provided.
 
-## Storage and deployment
+## Database and deployment
 
-Submissions and UTC creation timestamps are stored in the local PStore file
-`data/submissions.pstore`; `DATA_PATH` can select another location. Use a
-durable, access-controlled volume and secure backups: this file contains
-personal information. Only load a trusted PStore file, as PStore uses Ruby
-serialization. This simple single-host store is not intended for multiple
-servers or large datasets.
-
-For example, an administrator with access to the file can inspect records with:
+Development and test use SQLite files under `storage/`. Production defaults to
+`storage/production.sqlite3` and requires a durable volume. To use PostgreSQL,
+set `DATABASE_URL` to a PostgreSQL connection URL, for example:
 
 ```sh
-bundle exec ruby -rpstore -e 's = PStore.new(ARGV.fetch(0)); s.transaction(true) { s.roots.each { |id| p [id, s[id]] } }' data/submissions.pstore
+export DATABASE_URL="postgresql://localhost/volunteer_development"
+bin/rails db:prepare
 ```
 
-The server speaks plain HTTP. For remote use, put it behind HTTPS and restrict
-access to the service and its storage. Do not embed the API key in public
-website JavaScript: have a trusted backend submit the form instead. This API
-does not provide browser CORS support, rate limiting, or spam protection.
+Use separate databases for each environment; tests may erase their database.
+Submissions live in `volunteer_submissions` with a JSON `data` column and
+standard Rails timestamps. The previous PStore file is not imported
+automatically; preserve it and migrate any existing records before retiring it.
+
+Protect database access and backups because submissions contain personal data.
+Put the app behind HTTPS and a reverse proxy with an appropriate request-size
+limit and rate limiting. Production assumes an SSL-terminating reverse proxy.
+Do not embed the API key in public website JavaScript: have a trusted backend
+submit the form instead. This API does not provide browser CORS or spam
+protection. Avoid debug-level database logging when handling real submissions.
 
 ## Tests
 
 ```sh
-bundle exec ruby -Itest test/app_test.rb
+bin/rails test
 ```

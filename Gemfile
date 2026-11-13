@@ -1,7 +1,6 @@
-# frozen_string_literal: true
-
 source "https://rubygems.org"
 
-gem "webrick", "~> 1.9.2"
-
-gem "minitest", "~> 5.16", group: :test
+gem "rails", "~> 8.1.4", ">= 8.1.4.1"
+gem "sqlite3", "~> 2.10"
+gem "pg", "~> 1.7"
+gem "puma", "~> 7.2", ">= 7.2.2"
